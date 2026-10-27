@@ -1,0 +1,45 @@
+#!/bin/sh
+#
+# {{OUTPUT_NAME}}: Mosyle custom command wrapper for WKU Mac Health Check
+# Mosyle command: {{MOSYLE_COMMAND}}
+#
+# Built {{BUILD_DATE}} by github.com/bigdoodr/Mac-Health-Check (wku branch)
+#   upstream: dan-snelson/Mac-Health-Check {{UPSTREAM_REF}} ({{UPSTREAM_SHA}})
+#   wku overlay: {{OVERLAY_SHA}}
+#   script sha256: {{SCRIPT_SHA256}}
+#
+# Generated file. Change the wku branch and let the workflow rebuild instead of editing this.
+#
+# The script is gzipped, then base64-encoded, to keep the paste small. It is staged in a
+# root-only folder (not a fixed name in /var/tmp, where a standard user could pre-plant a
+# symlink) and its checksum is verified before it runs, so a paste into Mosyle that got
+# truncated fails loudly instead of running half a script.
+
+base64_string='{{BASE64}}'
+
+stagingDirectory="/Library/Management/edu.wku/mhc-staging"
+scriptPath="${stagingDirectory}/{{OUTPUT_NAME}}.zsh"
+expectedSHA256="{{SCRIPT_SHA256}}"
+
+if ! { /bin/mkdir -p "${stagingDirectory}" \
+    && /usr/sbin/chown root:wheel "/Library/Management/edu.wku" "${stagingDirectory}" \
+    && /bin/chmod 700 "${stagingDirectory}"; }; then
+    echo "{{OUTPUT_NAME}}: unable to prepare ${stagingDirectory}"
+    exit 1
+fi
+
+/bin/rm -f "${scriptPath}"
+echo "${base64_string}" | /usr/bin/base64 -d | /usr/bin/gunzip -c > "${scriptPath}" \
+    || { echo "{{OUTPUT_NAME}}: unable to decode script"; /bin/rm -f "${scriptPath}"; exit 1; }
+
+actualSHA256=$( /usr/bin/shasum -a 256 "${scriptPath}" | /usr/bin/awk '{ print $1 }' )
+if [ "${actualSHA256}" != "${expectedSHA256}" ]; then
+    echo "{{OUTPUT_NAME}}: checksum mismatch (expected ${expectedSHA256}, got ${actualSHA256}); not running"
+    /bin/rm -f "${scriptPath}"
+    exit 1
+fi
+
+/usr/sbin/chown root:wheel "${scriptPath}"
+/bin/chmod 700 "${scriptPath}"
+/bin/zsh "${scriptPath}"
+exit $?

@@ -1,0 +1,60 @@
+# Keeps main/development mirrored from dan-snelson/Mac-Health-Check and builds a WKU version of
+# every new upstream release, beta and development head. See README.md on the wku branch.
+
+name: WKU Sync and Build
+
+on:
+  schedule:
+    # Daily at 11:23 UTC (6:23 a.m. Central Daylight Time / 5:23 a.m. Central Standard Time)
+    - cron: "23 11 * * *"
+  push:
+    branches: [wku]
+    paths:
+      - "wku/**"
+      - "tools/**"
+      - ".github/workflows/wku-build.yml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Upstream tag or branch to build (blank = detect what's new)"
+        required: false
+        default: ""
+      force:
+        description: "Rebuild even if that release already exists"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: wku-build
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Mirror upstream branches
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mirror main and development
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: bash tools/ci-sync.sh
+
+  build:
+    name: Build WKU releases
+    runs-on: ubuntu-latest
+    needs: sync
+    if: ${{ always() }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install zsh
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
+      - name: Build and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force || 'false' }}
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: bash tools/ci-build.sh "${REQUESTED_REF}"

@@ -1,0 +1,14 @@
+[
+  {
+    "why": "Rename the Inspect sidebar entry so it's clear it can be clicked at any time to jump to the end and close the window",
+    "find": "\\\"displayName\\\":\\\"Next Steps\\\",",
+    "replace": "\\\"displayName\\\":\\\"Next Steps / Close\\\",",
+    "count": 1
+  },
+  {
+    "why": "Upstream's user-facing text names the author's organization",
+    "find": "aligned with Church standards",
+    "replace": "aligned with WKU standards",
+    "count": 1
+  }
+]
