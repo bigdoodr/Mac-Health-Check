@@ -359,8 +359,11 @@ function checkAirDropSettings() {
 # WKU: upstream does arithmetic on the value of `defaults read com.mosyle.macos.manager.mdm
 # MacCommandsReplyResultsSuccessDate`. When that domain or key is missing, the value is empty, zsh
 # aborts with "bad math expression", the script exits, and in Self Service swiftDialog is left
-# sitting on this step. Seen on test-group Macs in October 2026. This version also tries the
-# system-level plist, and reports "Unknown" as a warning instead of exiting.
+# sitting on this step. Seen on test-group Macs in October 2026: current Mosyle agents keep this
+# key in /var/root/Library/Preferences/com.mosyle.macos.mdm.daemon.plist (the "migration.6170"
+# keys there suggest an agent update moved it), and the old domain is only sometimes present.
+# This version reads the daemon plist first, falls back to the old domain, and reports "Unknown"
+# as a warning instead of exiting if neither has it.
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkMosyleCheckIn() {
@@ -383,8 +386,8 @@ function checkMosyleCheckIn() {
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
 
-    # WKU: try root's domain (upstream behavior), then the system-level plist
-    for mosyleDomain in "com.mosyle.macos.manager.mdm" "/Library/Preferences/com.mosyle.macos.manager.mdm"; do
+    # WKU: current Mosyle agent's daemon plist first, then the older domain upstream reads
+    for mosyleDomain in "/var/root/Library/Preferences/com.mosyle.macos.mdm.daemon" "com.mosyle.macos.manager.mdm"; do
         last_check_in_time=$( defaults read "${mosyleDomain}" MacCommandsReplyResultsSuccessDate 2>/dev/null | cut -d. -f1 )
         [[ "${last_check_in_time}" == <-> ]] && break
         last_check_in_time=""
@@ -393,7 +396,7 @@ function checkMosyleCheckIn() {
     if [[ -z "${last_check_in_time}" ]]; then
         # WKU: unreadable check-in time is a warning, not a crash
         dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Unable to read the last Mosyle check-in time, status: error, statustext: Unknown"
-        warning "${humanReadableCheckName}: Unknown (MacCommandsReplyResultsSuccessDate not found in com.mosyle.macos.manager.mdm)"
+        warning "${humanReadableCheckName}: Unknown (MacCommandsReplyResultsSuccessDate not found in com.mosyle.macos.mdm.daemon or com.mosyle.macos.manager.mdm)"
         footerStatusColor="${statusColorError}"
         dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
         sleep $((anticipationDuration / 2))
