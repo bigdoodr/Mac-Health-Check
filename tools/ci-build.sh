@@ -59,13 +59,16 @@ function openOrUpdateIssue() {  # <title> <body-file>
     gh label create "${ISSUE_LABEL}" -R "${FORK_REPO}" --color B01E24 \
         --description "WKU Mac Health Check build needs attention" >/dev/null 2>&1 || true
     number="$( gh issue list -R "${FORK_REPO}" --label "${ISSUE_LABEL}" --state open --search "\"${title}\" in:title" \
-        --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -1 )"
+        --json number,title --jq ".[] | select(.title == \"${title}\") | .number" 2>/dev/null | head -1 || true )"
     if [[ -n "${number}" ]]; then
-        gh issue comment "${number}" -R "${FORK_REPO}" --body-file "${bodyFile}" >/dev/null
+        gh issue comment "${number}" -R "${FORK_REPO}" --body-file "${bodyFile}" >/dev/null || true
         echo "Updated issue #${number}: ${title}"
     else
-        gh issue create -R "${FORK_REPO}" --title "${title}" --label "${ISSUE_LABEL}" --body-file "${bodyFile}" >/dev/null
-        echo "Opened issue: ${title}"
+        if gh issue create -R "${FORK_REPO}" --title "${title}" --label "${ISSUE_LABEL}" --body-file "${bodyFile}" >/dev/null; then
+            echo "Opened issue: ${title}"
+        else
+            echo "::error::Couldn't open an issue (are Issues enabled on ${FORK_REPO}?): ${title}"
+        fi
     fi
 }
 
@@ -73,9 +76,9 @@ function closeIssue() {  # <title>
     local title="${1}" number
     [[ "${DRY_RUN}" == "true" ]] && return
     number="$( gh issue list -R "${FORK_REPO}" --label "${ISSUE_LABEL}" --state open --search "\"${title}\" in:title" \
-        --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -1 )"
+        --json number,title --jq ".[] | select(.title == \"${title}\") | .number" 2>/dev/null | head -1 || true )"
     if [[ -n "${number}" ]]; then
-        gh issue close "${number}" -R "${FORK_REPO}" --comment "Fixed: ${2}" >/dev/null
+        gh issue close "${number}" -R "${FORK_REPO}" --comment "Fixed: ${2}" >/dev/null || true
         echo "Closed issue #${number}"
     fi
 }
