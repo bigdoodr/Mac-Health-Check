@@ -9776,7 +9776,26 @@ function checkMosyleCheckIn() {
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
 
-	last_check_in_time=$(defaults read com.mosyle.macos.manager.mdm MacCommandsReplyResultsSuccessDate | cut -d. -f1)
+    # Current Mosyle agents keep MacCommandsReplyResultsSuccessDate in root's
+    # `com.mosyle.macos.mdm.daemon` preferences; the older `com.mosyle.macos.manager.mdm` domain
+    # isn't always readable (it depends on how the script is launched), so try both
+    local mosyleCheckInDomain=""
+    last_check_in_time=""
+    for mosyleCheckInDomain in "/var/root/Library/Preferences/com.mosyle.macos.mdm.daemon" "com.mosyle.macos.manager.mdm"; do
+        last_check_in_time=$( defaults read "${mosyleCheckInDomain}" MacCommandsReplyResultsSuccessDate 2>/dev/null | cut -d. -f1 )
+        [[ "${last_check_in_time}" == <-> ]] && break
+        last_check_in_time=""
+    done
+
+    # Without a check-in time, report a warning and continue (arithmetic on an empty value exits the script)
+    if [[ -z "${last_check_in_time}" ]]; then
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Unable to determine the last Mosyle check-in, status: error, statustext: Unknown"
+        warning "${humanReadableCheckName}: Unknown (MacCommandsReplyResultsSuccessDate not found)"
+        footerStatusColor="${statusColorError}"
+        dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+        sleep $((anticipationDuration / 2))
+        return
+    fi
 
     # Convert last Mosyle check-in time to epoch
     last_check_in_time_epoch=$last_check_in_time
