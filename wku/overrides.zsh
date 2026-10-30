@@ -362,8 +362,9 @@ function checkAirDropSettings() {
 # sitting on this step. Seen on test-group Macs in October 2026: current Mosyle agents keep this
 # key in /var/root/Library/Preferences/com.mosyle.macos.mdm.daemon.plist (the "migration.6170"
 # keys there suggest an agent update moved it), and the old domain is only sometimes present.
-# This version reads the daemon plist first, falls back to the old domain, and reports "Unknown"
-# as a warning instead of exiting if neither has it.
+# This version reads both, keeps the newest, logs which one it used, and reports "Unknown" as a
+# warning instead of exiting if neither has it. Submitted upstream as
+# bigdoodr:bugfix/mosyle-check-in-unreadable; remove this override once Dan's release includes it.
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 function checkMosyleCheckIn() {
@@ -386,22 +387,30 @@ function checkMosyleCheckIn() {
     check_in_time_old=86400      # 1 day
     check_in_time_aging=28800    # 8 hours
 
-    # WKU: current Mosyle agent's daemon plist first, then the older domain upstream reads
+    # WKU: read the current Mosyle agent's daemon plist and the older domain upstream reads, and keep
+    # the newest (either can be stale); matches the fix submitted upstream
+    local mosyleCheckInValue=""
+    local mosyleCheckInSource=""
     for mosyleDomain in "/var/root/Library/Preferences/com.mosyle.macos.mdm.daemon" "com.mosyle.macos.manager.mdm"; do
-        last_check_in_time=$( defaults read "${mosyleDomain}" MacCommandsReplyResultsSuccessDate 2>/dev/null | cut -d. -f1 )
-        [[ "${last_check_in_time}" == <-> ]] && break
-        last_check_in_time=""
+        mosyleCheckInValue=$( defaults read "${mosyleDomain}" MacCommandsReplyResultsSuccessDate 2>/dev/null | cut -d. -f1 )
+        [[ "${mosyleCheckInValue}" == <-> ]] || continue
+        if (( mosyleCheckInValue > ${last_check_in_time:-0} )); then
+            last_check_in_time="${mosyleCheckInValue}"
+            mosyleCheckInSource="${mosyleDomain}"
+        fi
     done
 
     if [[ -z "${last_check_in_time}" ]]; then
         # WKU: unreadable check-in time is a warning, not a crash
-        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Unable to read the last Mosyle check-in time, status: error, statustext: Unknown"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: Please contact ${supportTeamName}, status: error, statustext: Unknown"
         warning "${humanReadableCheckName}: Unknown (MacCommandsReplyResultsSuccessDate not found in com.mosyle.macos.mdm.daemon or com.mosyle.macos.manager.mdm)"
         footerStatusColor="${statusColorError}"
         dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
         sleep $((anticipationDuration / 2))
         return
     fi
+
+    info "${humanReadableCheckName}: MacCommandsReplyResultsSuccessDate from ${mosyleCheckInSource}"
 
     # Convert last Mosyle check-in time to epoch
     last_check_in_time_epoch=$last_check_in_time
