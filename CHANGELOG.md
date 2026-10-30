@@ -4,7 +4,7 @@
 
 ### Unreleased
 - Fixed `checkMosyleCheckIn()` exiting the script (`bad math expression: operand expected at end of string`) when `com.mosyle.macos.manager.mdm` has no `MacCommandsReplyResultsSuccessDate`, which left `Self Service` stuck on the Mosyle Check-In step
-    - Reads `MacCommandsReplyResultsSuccessDate` from root's `com.mosyle.macos.mdm.daemon` preferences first (where current Mosyle agents keep it), then from `com.mosyle.macos.manager.mdm`
+    - Reads `MacCommandsReplyResultsSuccessDate` from both root's `com.mosyle.macos.mdm.daemon` preferences (where current Mosyle agents keep it) and `com.mosyle.macos.manager.mdm`, keeps the newest, and logs which source it used
     - Reports `Unknown` (warning) and continues when neither has a value
 
 ### 5.0.1 (14-Oct-2026)
