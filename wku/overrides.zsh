@@ -48,10 +48,8 @@ function getInspectProblemTextByIndex() {
                 return
                 ;;
             "airplay_receiver" )
-                if [[ "${normalizedStatus}" == "fail" ]]; then
-                    echo "Ensure AirPlay Receiver is disabled when not needed"
-                    return
-                fi
+                echo "Ensure AirPlay Receiver is disabled when not needed"
+                return
                 ;;
         esac
     fi
@@ -166,10 +164,8 @@ function getInspectDetailExplanationByIndex() {
                 return
                 ;;
             "airplay_receiver" )
-                if [[ "${normalizedStatus}" == "fail" ]]; then
-                    printf '%s' "Ensure AirPlay Receiver is disabled when not needed"
-                    return
-                fi
+                printf '%s' "Ensure AirPlay Receiver is disabled when not needed"
+                return
                 ;;
             "vpn_client" )
                 printf '%s' "WKU offers Cisco Secure Client VPN to access certain systems. It is not required unless your role or the systems you use require it."
@@ -211,10 +207,8 @@ function getInspectDetailRemediationByIndex() {
                 return
                 ;;
             "airplay_receiver" )
-                if [[ "${normalizedStatus}" == "fail" ]]; then
-                    printf '%s' "System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable"
-                    return
-                fi
+                printf '%s' "System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable"
+                return
                 ;;
             "vpn_client" )
                 printf '%s' "Cisco Secure Client can be installed through the Self-Service app."
@@ -449,6 +443,123 @@ function checkMosyleCheckIn() {
     sleep $((anticipationDuration / 2))
 
 }
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# Check AirPlay Receiver (full replacement; baseline: wku/baselines/checkAirPlayReceiver.zsh)
+#
+# WKU: AirPlay Receiver turned on is a warning (yellow), not a failure, and does not add to
+# overallHealth. macOS 27 turns it on by default, which made most of the fleet "Unhealthy".
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function checkAirPlayReceiver() {
+
+    local humanReadableCheckName="AirPlay Receiver"
+    local footerCheckIcon="SF=airplayvideo.circle.fill"
+    local footerStatusColor="${statusColorSuccess}"
+    notice "Checking ${humanReadableCheckName} status …"
+
+    dialogUpdate "icon: SF=airplayvideo.circle.fill,${organizationColorScheme}"
+    dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill $(echo "${organizationColorScheme}" | tr ',' ' '), iconalpha: 1, status: wait, statustext: Checking …"
+    dialogUpdate "progress: increment"
+    dialogUpdate "progresstext: Evaluating ${humanReadableCheckName} configuration …"
+
+    sleep "${anticipationDuration}"
+    
+    # Key names and missing-key responses have changed across macOS versions.
+    local result=""
+    local keyFound=""
+    local candidateKey=""
+    local -a preferenceKeys=(
+        "AirplayReceiverEnabled"
+        "AirplayRecieverEnabled"
+        "AirplayReceiverAdvertising"
+    )
+
+    for candidateKey in "${preferenceKeys[@]}"; do
+        result=$( captureRunAsUserOutput /usr/bin/defaults -currentHost read com.apple.controlcenter "${candidateKey}" )
+        if [[ "${result}" != *"does not exist"* ]] && \
+           [[ "${result}" != *"Could not find key"* ]] && \
+           [[ "${result}" != *"Domain 'com.apple.controlcenter' not found"* ]]; then
+            keyFound="${candidateKey}"
+            break
+        fi
+    done
+    
+    # Evaluate the result
+    if [[ -z "${keyFound}" ]]; then
+        # No key found:
+        # - macOS 15.7.x and macOS 27 default to Enabled
+        # - macOS 15.6.1 and earlier, and macOS 26, default to Disabled
+        if [[ ( "${osMajorVersion}" -eq 15 && "${osMinorVersion}" -ge 7 ) || "${osMajorVersion}" -ge 27 ]]; then
+            # WKU: enabled is a warning, not a failure
+            warning "${humanReadableCheckName}: Enabled (no ${keyFound:-AirplayReceiverEnabled} key; default behavior on macOS ${osMajorVersion}.${osMinorVersion})"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable, status: error, statustext: Enabled"
+            footerStatusColor="${statusColorError}"
+        else
+            info "${humanReadableCheckName}: Disabled (key not found on macOS ${osMajorVersion}.${osMinorVersion})"
+            dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+        fi
+
+    elif [[ "${result}" == "0" ]]; then
+        # Value is 0, disabled (compliant)
+        info "${humanReadableCheckName}: Disabled (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Disabled"
+
+    elif [[ "${result}" == "1" ]]; then
+        # Value is 1, enabled (non-compliant)
+        # WKU: enabled is a warning, not a failure
+        warning "${humanReadableCheckName}: Enabled (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable, status: error, statustext: Enabled"
+        footerStatusColor="${statusColorError}"
+
+    elif [[ "${result}" == "2" ]]; then
+        # Value is 2 (Contacts Only mode in some versions)
+        info "${humanReadableCheckName}: Contacts Only (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=semibold colour=${statusColorSuccess}, iconalpha: 0.9, subtitle: ${organizationBoilerplateComplianceMessage}, status: success, statustext: Contacts Only"
+
+    else
+        # Unexpected value
+        warning "${humanReadableCheckName}: Unexpected value (${keyFound}=${result})"
+        dialogUpdate "listitem: index: ${1}, icon: SF=$(printf "%02d" $(($1+1))).circle.fill weight=bold colour=${statusColorError}, iconalpha: 1, subtitle: System Settings > General > AirDrop & Continuity > AirPlay Receiver > Disable, status: error, statustext: Status Unknown"
+        footerStatusColor="${statusColorError}"
+    fi
+
+    dialogUpdate "icon: ${footerCheckIcon},weight=semibold,colour=${footerStatusColor}"
+    sleep $((anticipationDuration / 2))
+
+}
+
+
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+# System Integrity Protection / Signed System Volume on Intel Macs
+#
+# WKU: upstream reads both from `bputil --display-policy`, which exists only on Apple silicon. On
+# Intel Macs it returns nothing, so both checks failed. When bputil gives no status, fall back to
+# csrutil (`System Integrity Protection status: enabled.` / `Authenticated Root status: enabled`).
+# Runs here, after upstream sets bootPolicies* and before any check uses them.
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+
+function wkuCsrutilStatus() {
+    local csrutilOutput=""
+    csrutilOutput=$( /usr/bin/csrutil "$@" 2>/dev/null )
+    case "${csrutilOutput:l}" in
+        *"status: enabled"* ) echo "Enabled" ;;
+        *"status: disabled"* ) echo "Disabled" ;;
+        * ) echo "Unknown" ;;
+    esac
+}
+
+if [[ -z "${bootPoliciesSipStatus}" ]]; then
+    bootPoliciesSipStatus="$( wkuCsrutilStatus status )"
+    info "WKU: System Integrity Protection status from csrutil: ${bootPoliciesSipStatus}"
+fi
+if [[ -z "${bootPoliciesSsvStatus}" ]]; then
+    bootPoliciesSsvStatus="$( wkuCsrutilStatus authenticated-root status )"
+    info "WKU: Signed System Volume status from csrutil: ${bootPoliciesSsvStatus}"
+fi
 
 
 
