@@ -10,5 +10,17 @@
     "find": "aligned with Church standards",
     "replace": "aligned with WKU standards",
     "count": 1
+  },
+  {
+    "why": "App Auto-Patch 3.x logs contain non-text bytes, so BSD grep prints 'Binary file ... matches' instead of the line and the check fails with 'Invalid timestamp format' on Macs where AAP runs daily (57 of 69 diagnosed Macs, Nov 2026). -a reads the log as text.",
+    "find": "aap_ts_line=$(grep -E \"Current time stamp:\" \"${aap_log_path}\" | tail -1)",
+    "replace": "aap_ts_line=$(grep -a -E \"Current time stamp:\" \"${aap_log_path}\" | tail -1)",
+    "count": 1
+  },
+  {
+    "why": "Same binary-log issue for the App Auto-Patch 4.x log",
+    "find": "aap_ts_line=$( grep -E \"Discovery complete\" \"${aap_v4_log}\" 2>/dev/null | tail -1 )",
+    "replace": "aap_ts_line=$( grep -a -E \"Discovery complete\" \"${aap_v4_log}\" 2>/dev/null | tail -1 )",
+    "count": 1
   }
 ]
