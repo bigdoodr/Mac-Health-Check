@@ -8153,7 +8153,7 @@ function checkAppAutoPatch() {
         fi
         for aap_v4_log in "${aap_v4_logs[@]}"; do
             [[ -n "${aap_v4_log}" && -f "${aap_v4_log}" ]] || continue
-            aap_ts_line=$( grep -E "Discovery complete" "${aap_v4_log}" 2>/dev/null | tail -1 )
+            aap_ts_line=$( grep -a -E "Discovery complete" "${aap_v4_log}" 2>/dev/null | tail -1 )
             [[ -n "${aap_ts_line}" ]] || continue
             aap_ts=$( echo "${aap_ts_line%% *}" | sed -E 's/\.[0-9]+//; s/Z$/+0000/; s/([+-][0-9]{2}):([0-9]{2})$/\1\2/' )
             [[ "${aap_ts}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{4}$ ]] || continue
@@ -8170,7 +8170,7 @@ function checkAppAutoPatch() {
 
     # App Auto-Patch 3.x — Preferred: pull the last machine timestamp from the log (YYYYMMDDHHMMSS)
     if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" ]]; then
-        aap_ts_line=$(grep -E "Current time stamp:" "${aap_log_path}" | tail -1)
+        aap_ts_line=$(grep -a -E "Current time stamp:" "${aap_log_path}" | tail -1)
     fi
 
     if [[ "${canEvaluateLastRun}" == "true" && "${aap_log_format}" == "3" && -z "${aap_ts_line}" ]]; then

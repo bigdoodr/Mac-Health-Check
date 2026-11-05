@@ -2,6 +2,10 @@
 
 ## CHANGELOG
 
+### Unreleased
+- Fixed `checkAppAutoPatch()` failing with `Invalid timestamp format` on Macs where App Auto-Patch runs normally: when `aap.log` contains any non-text byte, `grep` prints `Binary file … matches` instead of the matching line, and the last word (`matches`) fails the 14-digit timestamp check
+    - Both App Auto-Patch log reads (3.x `Current time stamp:` and 4.x `Discovery complete`) now use `grep -a`, so the log is always read as text
+
 ### 5.0.2 (03-Nov-2026)
 - Fixed `checkMosyleCheckIn()` exiting the script (`bad math expression: operand expected at end of string`) when `com.mosyle.macos.manager.mdm` has no `MacCommandsReplyResultsSuccessDate`, which left `Self Service` stuck on the Mosyle Check-In step (thanks for PR #110, @bigdoodr!)
     - Reads `MacCommandsReplyResultsSuccessDate` from both root's `com.mosyle.macos.mdm.daemon` preferences (where current Mosyle agents keep it) and `com.mosyle.macos.manager.mdm`, keeps the newest, and logs which source it used
